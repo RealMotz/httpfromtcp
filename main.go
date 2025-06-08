@@ -15,6 +15,14 @@ func main() {
 	}
 	defer f.Close()
 
+	ch := getLinesChannel(f)
+
+	for line := range ch {
+		fmt.Printf("read: %s\n", line)
+	}
+}
+
+func readChunks(f io.ReadCloser, ch chan<- string) {
 	var line string
 	for {
 		var chunck [8]byte
@@ -22,6 +30,10 @@ func main() {
 
 		if err != nil {
 			if err == io.EOF {
+				if len(strings.TrimSpace(line)) > 0 {
+					ch <- line
+				}
+				close(ch)
 				break
 			}
 			fmt.Printf("%v\n", err)
@@ -35,17 +47,14 @@ func main() {
 		line += parts[0]
 
 		for i := 1; i < len(parts); i++ {
-			// Print completed line
-			printLine(line)
+			ch <- line
 			line = parts[i]
 		}
 	}
-
-	if len(strings.TrimSpace(line)) > 0 {
-		printLine(line)
-	}
 }
 
-func printLine(line string) {
-	fmt.Printf("read: %s\n", line)
+func getLinesChannel(f io.ReadCloser) <-chan string {
+	ch := make(chan string)
+	go readChunks(f, ch)
+	return ch
 }
