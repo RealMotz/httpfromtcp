@@ -50,14 +50,14 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			return nil, err
 		}
 
+		copy(buffer, buffer[parsedBytes:])
 		readToIndex -= parsedBytes
 
 		// If buffer is full
-		if readToIndex >= bufferSize {
-			newBuffer := make([]byte, bufferSize)
+		if readToIndex >= len(buffer) {
+			newBuffer := make([]byte, len(buffer)*2)
 			copy(newBuffer, buffer)
 			buffer = newBuffer
-			readToIndex = 0
 		}
 	}
 
@@ -93,8 +93,8 @@ func parseRequestLine(request []byte) (*RequestLine, int, error) {
 		return nil, 0, nil
 	}
 
-	requestStr := string(request)
-	fmt.Println(requestStr)
+	requestStr := string(request[:idx])
+	// Example: GET /coffee HTTP/1.1 -> [GET /Coffee HTTP/1.1]
 	parts := strings.Split(requestStr, " ")
 	if len(parts) != 3 {
 		return nil, 0, fmt.Errorf("poorly formatted request-line: %s", requestStr)
@@ -108,19 +108,29 @@ func parseRequestLine(request []byte) (*RequestLine, int, error) {
 		}
 	}
 
-	// Verify that the http version is 1.1
+	target := parts[1]
+
+	// Get the start line parts
 	versionParts := strings.Split(parts[2], "/")
-	if len(versionParts) != 2 || versionParts[1] != "1.1" {
-		return nil, len(request), fmt.Errorf("invalid version")
+	if len(versionParts) != 2 {
+		return nil, len(request), fmt.Errorf("malformed start-line: %s", requestStr)
 	}
-	// pattern := `^1\.1$`
-	// regex := regexp.MustCompile(pattern)
-	// if !regex.MatchString(version) {
-	// }
+
+	// verify that http is present
+	httpPart := versionParts[0]
+	if httpPart != "HTTP" {
+		return nil, len(request), fmt.Errorf("unrecognized HTTP-version: %s", httpPart)
+	}
+
+	// Verify that the http version is 1.1
+	version := versionParts[1]
+	if version != "1.1" {
+		return nil, len(request), fmt.Errorf("unrecognized HTTP-version: %s", version)
+	}
 
 	r := RequestLine{
-		HttpVersion:   versionParts[1],
-		RequestTarget: parts[1],
+		HttpVersion:   version,
+		RequestTarget: target,
 		Method:        method,
 	}
 
