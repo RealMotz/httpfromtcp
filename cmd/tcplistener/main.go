@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"os"
-	"strings"
+
+	"github.com/RealMotz/httpfromtcp/internal/request"
 )
 
 func main() {
@@ -25,49 +25,18 @@ func main() {
 
 		fmt.Println("Connection accepted")
 
-		ch := getLinesChannel(conn)
-
-		for line := range ch {
-			fmt.Printf("read: %s\n", line)
-		}
-
-		fmt.Println("Connection closed")
-	}
-}
-
-func getLinesChannel(f io.ReadCloser) <-chan string {
-	ch := make(chan string)
-	go readChunks(f, ch)
-	return ch
-}
-
-func readChunks(f io.ReadCloser, ch chan<- string) {
-	var line string
-	for {
-		var chunck [8]byte
-		_, err := f.Read(chunck[:])
-
+		req, err := request.RequestFromReader(conn)
 		if err != nil {
-			if err == io.EOF {
-				if len(strings.TrimSpace(line)) > 0 {
-					ch <- line
-				}
-				close(ch)
-				break
-			}
 			fmt.Printf("%v\n", err)
 			os.Exit(1)
 		}
 
-		str := string(chunck[:])
-		parts := strings.Split(str, "\n")
+		line := req.RequestLine
+		fmt.Println("Request line:")
+		fmt.Printf("- Method: %s\n", line.Method)
+		fmt.Printf("- Target: %s\n", line.RequestTarget)
+		fmt.Printf("- Version: %s\n", line.HttpVersion)
 
-		// Add first part
-		line += parts[0]
-
-		for i := 1; i < len(parts); i++ {
-			ch <- line
-			line = parts[i]
-		}
+		fmt.Println("Connection closed")
 	}
 }
